@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メッセージモニター</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: sans-serif;
+  background: #0a0a0a;
+  color: #fff;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+#header h1 { font-size: 16px; font-weight: 400; color: #888; letter-spacing: 0.05em; }
+#status { font-size: 13px; color: #444; display: flex; align-items: center; gap: 6px; }
+#status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #1D9E75;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+#msg-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+}
+#msg-list::-webkit-scrollbar { width: 4px; }
+#msg-list::-webkit-scrollbar-track { background: transparent; }
+#msg-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+.msg-card {
+  background: #141414;
+  border: 1px solid #222;
+  border-radius: 10px;
+  padding: 14px 18px;
+  animation: fadeIn 0.4s ease;
+  max-width: 800px;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg-text { font-size: 18px; line-height: 1.6; color: #f0f0f0; word-break: break-word; }
+.msg-time { font-size: 12px; color: #555; margin-top: 6px; }
+#empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: #333; font-size: 16px; letter-spacing: 0.05em;
+}
+#count { font-size: 13px; color: #555; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>messages</h1>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span id="count">0 件</span>
+    <div id="status">
+      <div id="status-dot"></div>
+      <span>受信中</span>
+    </div>
+  </div>
+</div>
+
+<div id="msg-list">
+  <div id="empty">メッセージを待っています...</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onChildAdded, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCyjkepTL5-jei31aAq5gEovPov86dbe8M",
+  authDomain: "saito-jsj.firebaseapp.com",
+  databaseURL: "https://saito-jsj-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "saito-jsj",
+  storageBucket: "saito-jsj.firebasestorage.app",
+  messagingSenderId: "86471000131",
+  appId: "1:86471000131:web:f4fbddea556845361d54f6"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let count = 0;
+const list = document.getElementById('msg-list');
+const empty = document.getElementById('empty');
+const countEl = document.getElementById('count');
+
+const messagesRef = query(ref(db, 'messages'), orderByChild('timestamp'));
+
+onChildAdded(messagesRef, (snapshot) => {
+  const data = snapshot.val();
+  if (!data || !data.text) return;
+
+  if (empty) empty.remove();
+
+  count++;
+  countEl.textContent = count + ' 件';
+
+  const card = document.createElement('div');
+  card.className = 'msg-card';
+
+  const d = new Date(data.timestamp);
+  const timeStr = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+
+  card.innerHTML = `
+    <div class="msg-text">${escapeHtml(data.text)}</div>
+    <div class="msg-time">${timeStr}</div>
+  `;
+
+  list.appendChild(card);
+  list.scrollTop = list.scrollHeight;
+});
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

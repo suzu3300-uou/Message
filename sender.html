@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スクロール地獄</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: sans-serif; background: #fff; color: #222; }
+#outer {
+  width: 100%; height: 100vh;
+  overflow: hidden; position: relative;
+  cursor: ns-resize; user-select: none;
+}
+#inner { position: absolute; width: 100%; top: 0; left: 0; }
+.section {
+  width: 100%; min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; padding: 2rem;
+  border-bottom: 1px solid #eee;
+}
+.section h2 { font-size: 26px; font-weight: 500; text-align: center; }
+.section p { font-size: 16px; color: #555; text-align: center; line-height: 1.7; max-width: 500px; }
+.emoji-big { font-size: 64px; }
+.progress-wrap { position: sticky; top: 0; width: 100%; height: 6px; background: #eee; z-index: 10; }
+.progress-fill { height: 100%; background: #7F77DD; width: 0%; transition: width 0.1s; }
+.progress-label {
+  position: sticky; top: 6px; width: 100%;
+  text-align: right; padding: 4px 14px;
+  font-size: 12px; color: #999;
+  background: #fff; border-bottom: 1px solid #eee; z-index: 10;
+}
+#msg-section { background: #f9f9f9; }
+textarea {
+  width: 100%; max-width: 420px; height: 110px;
+  resize: none; padding: 12px;
+  border-radius: 8px; border: 1px solid #ccc;
+  font-size: 14px; font-family: sans-serif;
+}
+.send-btn {
+  padding: 10px 30px; border-radius: 8px;
+  border: none; background: #7F77DD; color: #fff;
+  font-size: 15px; font-weight: 500; cursor: pointer;
+}
+.send-btn:hover { opacity: 0.85; }
+.send-btn:disabled { opacity: 0.5; cursor: default; }
+#sent-msg { display: none; font-size: 15px; color: #1D9E75; font-weight: 500; margin-top: 8px; }
+#error-msg { display: none; font-size: 14px; color: #D85A30; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="outer">
+  <div id="inner">
+    <div class="progress-wrap"><div class="progress-fill" id="pbar"></div></div>
+    <div class="progress-label" id="plabel">0.0% スクロール済み</div>
+
+    <div class="section">
+      <div class="emoji-big">👋</div>
+      <h2>ようこそ</h2>
+      <p>このページの一番下にメッセージフォームがあります。<br>ただし… スクロールは通常の <strong>1%</strong> しか進みません。</p>
+      <p style="color:#D85A30;font-weight:500">頑張ってください。</p>
+    </div>
+
+    <div class="section">
+      <div class="emoji-big">🐢</div>
+      <h2>まだまだです</h2>
+      <p>焦らず、コツコツとスクロールを続けましょう。</p>
+    </div>
+
+    <div class="section">
+      <div class="emoji-big">😅</div>
+      <h2>疲れてきましたか？</h2>
+      <p>あなたの指は正直ですね。でも諦めないで。</p>
+    </div>
+
+    <div class="section">
+      <div class="emoji-big">🌊</div>
+      <h2>深海へようこそ</h2>
+      <p>ここまで来たあなたはすごい。<br>でもまだ折り返しにも達していないかもしれません。</p>
+    </div>
+
+    <div class="section">
+      <div class="emoji-big">🏔️</div>
+      <h2>山の半ばで</h2>
+      <p>登山家も途中でくじけそうになります。<br>でも最後までたどり着いた景色は格別です。</p>
+    </div>
+
+    <div class="section">
+      <div class="emoji-big">🚀</div>
+      <h2>もう少し？</h2>
+      <p>プログレスバーを見てください。<br>正直に言えば、まだ遠いです。</p>
+    </div>
+
+    <div class="section">
+      <div class="emoji-big">🎖️</div>
+      <h2>あなたは本物だ</h2>
+      <p>ここまでスクロールし続けたあなたに、<br>心からの敬意を表します。</p>
+    </div>
+
+    <div class="section">
+      <div class="emoji-big">✨</div>
+      <h2>もうすぐです</h2>
+      <p>フォームが見えてきましたか？最後の一踏ん張り！</p>
+    </div>
+
+    <div class="section" id="msg-section">
+      <div class="emoji-big">🎉</div>
+      <h2>到達おめでとうございます！</h2>
+      <p>あなたの努力は報われました。<br>以下にメッセージを入力してください。</p>
+      <textarea id="msg-input" placeholder="ここにメッセージを入力..."></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendMsg()">送信する</button>
+      <div id="sent-msg">✅ メッセージを送信しました。お疲れ様でした。</div>
+      <div id="error-msg">⚠️ 送信に失敗しました。もう一度お試しください。</div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCyjkepTL5-jei31aAq5gEovPov86dbe8M",
+  authDomain: "saito-jsj.firebaseapp.com",
+  databaseURL: "https://saito-jsj-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "saito-jsj",
+  storageBucket: "saito-jsj.firebasestorage.app",
+  messagingSenderId: "86471000131",
+  appId: "1:86471000131:web:f4fbddea556845361d54f6"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+window.sendMsg = async function() {
+  const val = document.getElementById('msg-input').value.trim();
+  if (!val) {
+    document.getElementById('msg-input').placeholder = 'メッセージを入力してください！';
+    return;
+  }
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  document.getElementById('error-msg').style.display = 'none';
+
+  try {
+    await push(ref(db, 'messages'), {
+      text: val,
+      timestamp: Date.now()
+    });
+    document.getElementById('sent-msg').style.display = 'block';
+    document.getElementById('msg-input').disabled = true;
+    btn.style.display = 'none';
+  } catch (e) {
+    document.getElementById('error-msg').style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '送信する';
+  }
+};
+
+const outer = document.getElementById('outer');
+const inner = document.getElementById('inner');
+const pbar = document.getElementById('pbar');
+const plabel = document.getElementById('plabel');
+let currentY = 0, isDragging = false, lastClientY = 0;
+
+function getMax() { return inner.scrollHeight - outer.clientHeight; }
+function setScroll(y) {
+  const max = getMax();
+  currentY = Math.max(0, Math.min(y, max));
+  inner.style.top = (-currentY) + 'px';
+  const pct = max > 0 ? (currentY / max * 100) : 0;
+  pbar.style.width = pct.toFixed(1) + '%';
+  plabel.textContent = pct.toFixed(1) + '% スクロール済み';
+}
+
+outer.addEventListener('wheel', e => { e.preventDefault(); setScroll(currentY + e.deltaY * 0.01); }, { passive: false });
+outer.addEventListener('mousedown', e => { isDragging = true; lastClientY = e.clientY; outer.style.cursor = 'grabbing'; });
+window.addEventListener('mousemove', e => { if (!isDragging) return; setScroll(currentY + (lastClientY - e.clientY) * 0.01); lastClientY = e.clientY; });
+window.addEventListener('mouseup', () => { isDragging = false; outer.style.cursor = 'ns-resize'; });
+outer.addEventListener('touchstart', e => { lastClientY = e.touches[0].clientY; }, { passive: true });
+outer.addEventListener('touchmove', e => { e.preventDefault(); setScroll(currentY + (lastClientY - e.touches[0].clientY) * 0.01); lastClientY = e.touches[0].clientY; }, { passive: false });
+</script>
+</body>
+</html>
